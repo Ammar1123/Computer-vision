@@ -22,6 +22,11 @@ To start the code:
   After choosing yes or no we open Roversim.x86_64 then select autonomus mode without closing the terminal
   if no debugging is selected the program will run without saving images from the rover
   if debugging is selected the images will be captured from the rovers camera and saved in the debuger folder
-  *pic*
+  
+  ![Debugger](https://user-images.githubusercontent.com/85449665/206904863-7c99c0db-d72a-431a-9151-1d5493feb746.png)
+
+  
   when done we exit the Roversim.x86_64 and open terminal and ctrl+c to stop the program
-  *pic*
+  
+  
+![Working_terminal](https://user-images.githubusercontent.com/85449665/206904872-897de29a-632f-4bbf-a5e2-ab852154b222.png)
