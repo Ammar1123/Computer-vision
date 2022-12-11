@@ -13,11 +13,25 @@ def color_thresh(img, rgb_thresh=(160, 160, 160)):
                 & (img[:,:,1] > rgb_thresh[1]) \
                 & (img[:,:,2] > rgb_thresh[2])
     # Index the array of zeros with the boolean array and set to 1
-    color_select[above_thresh] = 1
+    color_select[above_thresh] = 150
     # Return the binary image
     return color_select
 
-def rock_thres(img, rgb_thresh=(110, 110, 40)):
+def color_thresh_obstacles(img, rgb_thresh=(115, 115, 115)):
+    # Create an array of zeros same xy size as img, but single channel
+    color_select = np.zeros_like(img[:,:,0])
+    # Require that each pixel be above all three threshold values in RGB
+    # above_thresh will now contain a boolean array with "True"
+    # where threshold was met
+    above_thresh = (img[:,:,0] < rgb_thresh[0]) \
+                & (img[:,:,1] < rgb_thresh[1]) \
+                & (img[:,:,2] < rgb_thresh[2])
+    # Index the array of zeros with the boolean array and set to 1
+    color_select[above_thresh] = 150
+    # Return the binary image
+    return color_select
+
+def color_thresh_rock(img, rgb_thresh=(100, 100, 20)):
     # Create an array of zeros same xy size as img, but single channel
     color_select = np.zeros_like(img[:,:,0])
     # Require that each pixel be above all three threshold values in RGB
@@ -27,14 +41,9 @@ def rock_thres(img, rgb_thresh=(110, 110, 40)):
                 & (img[:,:,1] > rgb_thresh[1]) \
                 & (img[:,:,2] < rgb_thresh[2])
     # Index the array of zeros with the boolean array and set to 1
-    color_select[above_thresh] = 1
-    kernel = np.ones((3,3),np.uint8)
-    dilation = cv2.dilate(color_select,kernel,iterations = 2)
-    
-    
+    color_select[above_thresh] = 150
     # Return the binary image
-    return dilation
-
+    return color_select
 
 # Define a function to convert from image coords to rover coords
 def rover_coords(binary_img):
@@ -97,77 +106,92 @@ def perspect_transform(img, src, dst):
     return warped
 
 
-
-
 # Apply the above functions in succession and update the Rover state accordingly
-def perception_step(Rover):
-
-
-    image = Rover.img
-    dst_size = 5 
-    bottom_offset = 6
-    source = np.float32([[14, 140], [301 ,140],[200, 96], [118, 96]])
-    destination = np.float32([[image.shape[1]/2 - dst_size, image.shape[0] - bottom_offset],
-                      [image.shape[1]/2 + dst_size, image.shape[0] - bottom_offset],
-                      [image.shape[1]/2 + dst_size, image.shape[0] - 2*dst_size - bottom_offset], 
-                      [image.shape[1]/2 - dst_size, image.shape[0] - 2*dst_size - bottom_offset],
-                      ])
+def perception_step(Rover, debug):
+    # Perform perception steps to update Rover()
+    # TODO: 
+    # NOTE: camera image is coming to you in Rover.img
+    # 1) Define source and destination points for perspective transform
+    # 2) Apply perspective transform
     
-    warped = perspect_transform(image, source, destination)
+    # 3) Apply color threshold to identify navigable terrain/obstacles/rock samples
+    # 4) Update Rover.vision_image (this will be displayed on left side of screen)
+        # Example: Rover.vision_image[:,:,0] = obstacle color-thresholded binary image
+        #          Rover.vision_image[:,:,1] = rock_sample color-thresholded binary image
+        #          Rover.vision_image[:,:,2] = navigable terrain color-thresholded binary image
 
-    mask = perspect_transform(np.ones_like(image)*255, source, destination)
-    mask[0:60,:] = 0
-    mask[:,0:50] = 0
-    mask[:,270:] = 0
+    # 5) Convert map image pixel values to rover-centric coords
+    # 6) Convert rover-centric pixel values to world coordinates
+    # 7) Update Rover worldmap (to be displayed on right side of screen)
+        # Example: Rover.worldmap[obstacle_y_world, obstacle_x_world, 0] += 1
+        #          Rover.worldmap[rock_y_world, rock_x_world, 1] += 1
+        #          Rover.worldmap[navigable_y_world, navigable_x_world, 2] += 1
 
-
-    rock_mask = np.copy(mask)
-    rock_mask[0:110,:] = 0
-
-
-    obstacles = color_thresh(~warped & mask)
-    kernel = np.ones((5,5),np.uint8)
-    obstacles = cv2.dilate(obstacles,kernel,iterations = 2)
-
-    rock_warped = perspect_transform(image, source, destination)
-    
-    road = color_thresh(warped & mask)
-    kernel = np.ones((3,5),np.uint8)
-    road = cv2.erode(road,kernel,iterations = 3)
-    
-    rocks = rock_thres(rock_warped)
-
-    Rover.vision_image[:,:,2] = road * 255
-    Rover.vision_image[:,:,0] = obstacles * 255
-
-    road_xpix, road_ypix = rover_coords(road)    
-    obs_xpix, obs_ypix = rover_coords(obstacles)    
-    rock_xpix, rock_ypix = rover_coords(rocks)
-    
-    scale = 10
-    worldsize = 200
-    xpos = Rover.pos[0]
-    ypos = Rover.pos[1]
-    yaw =  Rover.yaw
-    
-    road_world_x,road_world_y, = pix_to_world(road_xpix, road_ypix, xpos,ypos ,yaw, worldsize, scale) 
-    obs_world_x,obs_world_y, = pix_to_world(obs_xpix, obs_ypix, xpos,ypos ,yaw, worldsize, scale) 
-    rock_world_x, rock_world_y = pix_to_world(rock_xpix, rock_ypix, xpos,ypos ,yaw, worldsize, scale)
-
-    Rover.worldmap[road_world_y,road_world_x,2] = 255
-    Rover.worldmap[obs_world_y,obs_world_x,0] = 255
-    Rover.worldmap[rock_world_y, rock_world_x,1] = 255
-    
-    #clear road
-    is_road = Rover.worldmap[:,:,2] > 0
-    Rover.worldmap[is_road,0] = 0
-
-    distance, angles = to_polar_coords(road_xpix, road_ypix)
-    Rover.nav_angles = angles
-
+    # 8) Convert rover-centric pixel positions to polar coordinates
+    # Update Rover pixel distances and angles
+        # Rover.nav_dists = rover_centric_pixel_distances
+        # Rover.nav_angles = rover_centric_angles
     
  
+    dst = 3
+    bottom_offset = 5
+    #the numbers change according to the the grid output image in the prev function
+    source= np.float32([[14,140],
+                        [300,140],
+                        [200,95],
+                        [120,95]])
+    destination = np.float32([[Rover.img.shape[1]/2 - dst, Rover.img.shape[0] - bottom_offset],
+                            [Rover.img.shape[1]/2 + dst, Rover.img.shape[0] - bottom_offset],
+                            [Rover.img.shape[1]/2 + dst, Rover.img.shape[0] - 2*dst - bottom_offset],
+                            [Rover.img.shape[1]/2 - dst, Rover.img.shape[0] - 2*dst - bottom_offset]])
     
+    
+
+    if(debug):
+        warped = perspect_transform(Rover.img, source, destination)
+        threshed = color_thresh(warped)
+        obstacles = color_thresh_obstacles(warped)
+        rock = color_thresh_rock(warped)
+
+        cv2.imwrite("debuger/ "+ str(Rover.total_time) + "original.jpg",Rover.img)
+        cv2.imwrite("debuger/ "+str(Rover.total_time) + "threshed.jpg",threshed)
+        cv2.imwrite("debuger/ "+str(Rover.total_time) + "warped.jpg",warped)
+        cv2.imwrite("debuger/ "+str(Rover.total_time) + "obstacles.jpg",obstacles)
+        cv2.imwrite("debuger/ "+str(Rover.total_time) + "rock.jpg",rock)
+
+    else:
+        warped = perspect_transform(Rover.img, source, destination)
+        threshed = color_thresh(warped)
+        obstacles = color_thresh_obstacles(warped)
+        rock = color_thresh_rock(warped)
+
+    Rover.vision_image[:,:,0] = obstacles*255
+    Rover.vision_image[:,:,1] = rock*255
+    Rover.vision_image[:,:,2] = threshed*255
+
+    x , y = rover_coords(threshed)
+    dist , angle = to_polar_coords(x,y)
+
+    x_world , y_world = pix_to_world(x,y,Rover.pos[0],Rover.pos[1],Rover.yaw,Rover.worldmap.shape[0],6)
+    x_rock, y_rock = rover_coords(rock)
+    xw_rock, yw_rock = pix_to_world(x_rock,y_rock,Rover.pos[0],Rover.pos[1],Rover.yaw,Rover.worldmap.shape[0],6)
+    x_obst , y_obst = rover_coords(obstacles)
+    xw_obst , yw_obst = pix_to_world(x_obst,y_obst,Rover.pos[0],Rover.pos[1],Rover.yaw,Rover.worldmap.shape[0],6)
+
+    Rover.worldmap[yw_obst, xw_obst, 0] += 1
+    Rover.worldmap[yw_rock, xw_rock, 1] += 1
+    Rover.worldmap[y_world, x_world, 2] += 1
+
+    Rover.nav_dists = dist
+    Rover.nav_angles = angle
+    
+    cv2.imshow('Rover',Rover.img)
+    cv2.imshow('Warped',warped)
+    cv2.imshow('Threashed',threshed * 255)
+    cv2.imshow('rock',rock * 255)
+    cv2.imshow('obstacles',obstacles * 255)
+    
+    cv2.waitKey(1)
     
     return Rover
-
+    
