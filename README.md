@@ -4,7 +4,7 @@ Phase 1 of Mars Rover project
 
 To start the code:
   first open the folder named "code"
-  *pic*
+  /home/ammar/Pictures/Run code.png
   
   then right click and select open in terminal 
   *pic*
