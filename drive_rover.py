@@ -23,11 +23,11 @@ from decision import decision_step
 from supporting_functions import update_rover, create_output_images
 # Initialize socketio server and Flask application 
 # (learn more at: https://python-socketio.readthedocs.io/en/latest/)
-if(input("Start debugging? (y/n)") == "y"):
+
+if(input("start debugging? (y/n)") == "y"):
     debug = True
 else:
     debug = False
-
 
 sio = socketio.Server()
 app = Flask(__name__)
@@ -57,32 +57,42 @@ class RoverState():
         self.brake = 0 # Current brake value
         self.nav_angles = None # Angles of navigable terrain pixels
         self.nav_dists = None # Distances of navigable terrain pixels
+        self.rock_angles = None # Angles of rock sample pixels
+        self.rock_dists = None # Distances of rock sample pixels
         self.ground_truth = ground_truth_3d # Ground truth worldmap
-        self.mode = 'forward' # Current mode (can be forward or stop)
-        self.throttle_set = 0.2 # Throttle setting when accelerating
-        self.brake_set = 10 # Brake setting when braking
+        self.mode = 'forward' # Current mode (can be forward or stop or stuck)
+        self.throttle_set = 0.5 # Throttle setting when accelerating
+        self.brake_set = 15 # Brake setting when braking
         # The stop_forward and go_forward fields below represent total count
         # of navigable terrain pixels.  This is a very crude form of knowing
         # when you can keep going and when you should stop.  Feel free to
         # get creative in adding new fields or modifying these!
         self.stop_forward = 50 # Threshold to initiate stopping
         self.go_forward = 500 # Threshold to go forward again
-        self.max_vel = 2 # Maximum velocity (meters/second)
+        self.max_vel = 1.8 # Maximum velocity (meters/second)
         # Image output from perception step
         # Update this image to display your intermediate analysis steps
         # on screen in autonomous mode
         self.vision_image = np.zeros((160, 320, 3), dtype=np.float) 
+        self.left_samp_angles = None
         # Worldmap
         # Update this image with the positions of navigable terrain
         # obstacles and rock samples
-        self.worldmap = np.zeros((200, 200, 3), dtype=np.float) 
-        self.samples_pos = None # To store the actual sample positions
+        self.worldmap = np.zeros((200, 200, 3), dtype=np.float)
+        self.debuggingmodeimg = np.zeros((200, 200, 3), dtype=np.float)
+        self.samples_pos = None # To store the actual sample positions  
         self.samples_to_find = 0 # To store the initial count of samples
-        self.samples_located = 0 # To store number of samples located on map
-        self.samples_collected = 0 # To count the number of samples collected
-        self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
-        self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
-        self.send_pickup = False # Set to True to trigger rock pickup
+        self.samples_located = 0 # To store number of samples located on map 
+        self.samples_collected = 0 # To count the number of samples collected 
+        self.near_sample = False # Will be set to telemetry value data["near_sample"] 
+        self.picking_up = False # Will be set to telemetry value data["picking_up"] 
+        self.send_pickup = False # Set to True to trigger rock pickup 
+        self.perception_count = 0 # Counter to keep track of when we cleanup the map every 200 frames 
+        self.start_pos = None # Keeps track of starting position for when we return 
+        self.stuck_counter = 0 # Keeps count for unsticking operations, how long weve been stuck, how long weve attempted full throttle or yawing
+        self.stuck_mode = None #this states when we are stuck in which mode we are in either forward or stop
+        
+        
 # Initialize our rover 
 Rover = RoverState()
 
@@ -115,11 +125,11 @@ def telemetry(sid, data):
         if np.isfinite(Rover.vel):
 
             # Execute the perception and decision steps to update the Rover's state
-            Rover = perception_step(Rover,debug)
+            Rover = perception_step(Rover, debug)
             Rover = decision_step(Rover)
 
             # Create output images to send to server
-            out_image_string1, out_image_string2 = create_output_images(Rover)
+            out_image_string1, out_image_string2, out_image_string3 = create_output_images(Rover)
 
             # The action step!  Send commands to the rover!
  
@@ -181,7 +191,7 @@ def send_control(commands, image_string1, image_string2):
     eventlet.sleep(0)
 # Define a function to send the "pickup" command 
 def send_pickup():
-    print("Picking up")
+    print("Picking up rock")
     pickup = {}
     sio.emit(
         "pickup",

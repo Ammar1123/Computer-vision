@@ -55,11 +55,12 @@ def update_rover(Rover, data):
     # Update number of rocks collected
     Rover.samples_collected = Rover.samples_to_find - np.int(data["sample_count"])
 
-    print('speed =', Rover.vel, 'position =', Rover.pos, 'throttle =',
-          Rover.throttle, 'steer_angle =', Rover.steer, 'near_sample:', Rover.near_sample,
-          'picking_up:', data["picking_up"], 'sending pickup:', Rover.send_pickup,
-          'total time:', Rover.total_time, 'samples remaining:', data["sample_count"],
-          'samples collected:', Rover.samples_collected)
+    #print('speed =', Rover.vel, 'position =', Rover.pos, 'throttle =',
+          #Rover.throttle, 'steer_angle =', Rover.steer, 'near_sample:', Rover.near_sample,
+          #'picking_up:', data["picking_up"], 'sending pickup:', Rover.send_pickup,
+          #'total time:', Rover.total_time, 'samples remaining:', data["sample_count"],
+          #'samples collected:', Rover.samples_collected)
+          
     # Get the current image from the center camera of the rover
     imgString = data["image"]
     image = Image.open(BytesIO(base64.b64decode(imgString)))
@@ -159,5 +160,10 @@ def create_output_images(Rover):
     buff = BytesIO()
     pil_img.save(buff, format="JPEG")
     encoded_string2 = base64.b64encode(buff.getvalue()).decode("utf-8")
+    
+    pil_img = Image.fromarray(Rover.debuggingmodeimg.astype(np.uint8))
+    buff = BytesIO()
+    pil_img.save(buff, format="JPEG")
+    encoded_string3 = base64.b64encode(buff.getvalue()).decode("utf-8")
 
-    return encoded_string1, encoded_string2
+    return encoded_string1, encoded_string2, encoded_string3
