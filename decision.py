@@ -16,7 +16,7 @@ def decision_step(Rover):
     # consider it a success and plot the location of the known
     # sample on the map
     
-    if Rover.samples_collected == 5:
+    if Rover.samples_collected >= 5:
         print("GO TO START")
         dist_start = np.sqrt((Rover.pos[0] - Rover.start_pos[0])**2 + (Rover.pos[1] - Rover.start_pos[1])**2)
         # Make sure we are heading in right general direction
